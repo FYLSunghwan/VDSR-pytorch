@@ -28,7 +28,7 @@ class Settings:
     
     # Model Settings
     num_channels = 3
-    num_threads = 2
+    num_threads = 1
     batch_size = 128
     test_batch_size = 2
     crop_size = 48
