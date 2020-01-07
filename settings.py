@@ -34,4 +34,5 @@ class Settings:
     crop_size = 48
     scale_factor = 2
     clip = 0.4
+    lr = 0.1
   
