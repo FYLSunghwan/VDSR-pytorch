@@ -60,15 +60,16 @@ class TrainDataset(data.Dataset):
         self.fliplr = self.settings.dataset_info['291']['fliplr']
         self.fliptb = self.settings.dataset_info['291']['fliptb']
         self.scale_factor = self.settings.dataset_info['291']['scale_factor']
+        self.random_scale_factor = self.settings.dataset_info['291']['random_scale_factor']
         
 
     def __getitem__(self, index):
         # load image
         img = load_img(self.image_filenames[index])
 
-        if self.random_scale:
-            self.scale_factor = random.randint(2, 4)
-            
+        if self.random_scale_factor:
+            random_scale_factor = random.randint(2, 4)
+
         # determine valid HR image size with scale factor
         self.crop_size = calculate_valid_crop_size(self.crop_size, self.scale_factor)
         hr_img_w = self.crop_size
@@ -77,6 +78,20 @@ class TrainDataset(data.Dataset):
         # determine LR image size
         lr_img_w = hr_img_w // self.scale_factor
         lr_img_h = hr_img_h // self.scale_factor
+
+        # random scaling between [0.5, 1.0]
+        if self.random_scale:
+            eps = 1e-3
+            ratio = random.randint(5, 10) * 0.1
+            if hr_img_w * ratio < self.crop_size:
+                ratio = self.crop_size / hr_img_w + eps
+            if hr_img_h * ratio < self.crop_size:
+                ratio = self.crop_size / hr_img_h + eps
+
+            scale_w = int(hr_img_w * ratio)
+            scale_h = int(hr_img_h * ratio)
+            transform = Resize((scale_w, scale_h), interpolation=Image.BICUBIC)
+            img = transform(img)
 
         # random crop
         transform = RandomCrop(self.crop_size)
@@ -114,7 +129,7 @@ class TrainDataset(data.Dataset):
         bc_transform = Compose([ToPILImage(), Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
         bc_img = bc_transform(lr_img)
 
-        return lr_img, hr_img, bc_img
+        return bc_img, hr_img
 
     def __len__(self):
         return len(self.image_filenames)
@@ -139,11 +154,11 @@ class TestDataset(data.Dataset):
         if not os.path.exists(self.dataset_path):
             link = self.settings.dataset_info['SR_testing_datasets']['link']
             print("Downloading '{dataset_id}' dataset from cloud... id:[{link}]".format(dataset_id='SR_testing_datasets', link=link))
-            comp_file_name = self.download_dataset(dataset_path=self.settings.dataset_root, link=link)
+            comp_file_name = self.download_dataset(dataset_path=self.dataset_path, link=link)
 
-            print("Unzipping...".format(dataset_id='291'))
+            print("Unzipping...".format(dataset_id='SR_testing_datasets'))
             with zipfile.ZipFile(comp_file_name, 'r') as zip_ref:
-                zip_ref.extractall(self.settings.dataset_root)
+                zip_ref.extractall(os.path.join(self.settings.dataset_root, 'SR_testing_datasets'))
 
             if os.path.exists(self.dataset_path):
                 print("Successfully downloaded '{dataset_id}' dataset @ [{dataset_path}]".format(dataset_id='SR_testing_datasets', dataset_path=self.dataset_path))
