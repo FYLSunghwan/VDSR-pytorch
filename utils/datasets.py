@@ -68,7 +68,7 @@ class TrainDataset(data.Dataset):
         img = load_img(self.image_filenames[index])
 
         if self.random_scale_factor:
-            random_scale_factor = random.randint(2, 4)
+            self.scale_factor = random.randint(2, 4)
 
         # determine valid HR image size with scale factor
         self.crop_size = calculate_valid_crop_size(self.crop_size, self.scale_factor)
@@ -205,7 +205,7 @@ class TestDataset(data.Dataset):
         bc_transform = Compose([ToPILImage(), Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
         bc_img = bc_transform(lr_img)
 
-        return lr_img, hr_img, bc_img
+        return bc_img, hr_img
 
     def __len__(self):
         return len(self.image_filenames)
