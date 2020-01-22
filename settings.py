@@ -9,12 +9,12 @@ class Settings:
             'path': './',
             'link': '1Rt3asDLuMgLuJvPA1YrhyjWhb97Ly742',
             'is_gray': False,
-            'random_scale': True,
-            'crop_size': 48,
+            'random_scale': False,
+            'crop_size': 72,
             'rotate': True,
             'fliplr': True,
             'fliptb': True,
-            'scale_factor': 2,
+            'scale_factor': 3,
             'random_scale_factor': True
         },
         'SR_testing_datasets': {
