@@ -154,6 +154,7 @@ class TestDataset(data.Dataset):
         if not os.path.exists(self.dataset_path):
             link = self.settings.dataset_info['SR_testing_datasets']['link']
             print("Downloading '{dataset_id}' dataset from cloud... id:[{link}]".format(dataset_id='SR_testing_datasets', link=link))
+            os.mkdir(self.dataset_path)
             comp_file_name = self.download_dataset(dataset_path=self.dataset_path, link=link)
 
             print("Unzipping...".format(dataset_id='SR_testing_datasets'))
