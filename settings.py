@@ -10,19 +10,19 @@ class Settings:
             'link': '1Rt3asDLuMgLuJvPA1YrhyjWhb97Ly742',
             'is_gray': False,
             'random_scale': False,
-            'crop_size': 72,
+            'crop_size': 36,
             'rotate': True,
             'fliplr': True,
             'fliptb': True,
-            'scale_factor': 3,
-            'random_scale_factor': True
+            'scale_factor': 2,
+            'random_scale_factor': False
         },
         'SR_testing_datasets': {
             'id': 'Set5',
             'path': './',
             'link': 'http://vllab.ucmerced.edu/wlai24/LapSRN/results/SR_testing_datasets.zip',
             'is_gray': False,
-            'scale_factor': 3
+            'scale_factor': 2
         }
     }
     dataset_root = os.path.join(root, 'datasets')
@@ -33,5 +33,5 @@ class Settings:
     batch_size = 64
     test_batch_size = 1
     clip = 0.4
-    lr = 0.1
+    lr = 1e-4
   
