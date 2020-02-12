@@ -12,7 +12,7 @@ usage: python3 train.py
   - The dataset will be automatically downloaded during loading the dataloader.
   
 ### Performance
-  - Tested my VDSR model with [291](https://drive.google.com/open?id=1Rt3asDLuMgLuJvPA1YrhyjWhb97Ly742) images with data augmentation
+  - Trained my VDSR model with [291](https://drive.google.com/open?id=1Rt3asDLuMgLuJvPA1YrhyjWhb97Ly742) images with data augmentation
   - No bias is used in this implementation, and didn't used gradient clipping.
   - Used Adam optimizer instead of SGD.
   - Random crop & rotation & flip is used with torchvision.
