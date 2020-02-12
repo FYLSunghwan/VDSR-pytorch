@@ -10,15 +10,29 @@ from utils.google_drive import download_from_url
 from tqdm import tqdm
 import zipfile
 import random
+import numpy as np
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg", ".bmp"])
 
 
 def load_img(filepath):
-    img = Image.open(filepath).convert('RGB')
+    img = Image.open(filepath)
     return img
 
+
+def resize_img(img_np, height, width, resample=Image.BICUBIC):
+    img = Image.fromarray(img_np)
+    resized = img.resize((width, height), resample=resample)
+    return np.array(resized)
+
+
+def interpolate(gt, newh, neww):
+    gt = np.asarray(gt)
+    h, w, c = gt.shape
+    bicubic = resize_img(gt, newh, neww)
+    bicubic = resize_img(bicubic, h, w)
+    return bicubic
 
 def calculate_valid_crop_size(crop_size, scale_factor):
     return crop_size - (crop_size % scale_factor)
@@ -60,15 +74,16 @@ class TrainDataset(data.Dataset):
         self.fliplr = self.settings.dataset_info['291']['fliplr']
         self.fliptb = self.settings.dataset_info['291']['fliptb']
         self.scale_factor = self.settings.dataset_info['291']['scale_factor']
+        self.random_scale_factor = self.settings.dataset_info['291']['random_scale_factor']
         
 
     def __getitem__(self, index):
         # load image
         img = load_img(self.image_filenames[index])
 
-        if self.random_scale:
+        if self.random_scale_factor:
             self.scale_factor = random.randint(2, 4)
-            
+
         # determine valid HR image size with scale factor
         self.crop_size = calculate_valid_crop_size(self.crop_size, self.scale_factor)
         hr_img_w = self.crop_size
@@ -97,24 +112,17 @@ class TrainDataset(data.Dataset):
             if random.random() < 0.5:
                 img = img.transpose(Image.FLIP_TOP_BOTTOM)
 
-        # only Y-channel is super-resolved
-        if self.is_gray:
-            img = img.convert('YCbCr')
-            # img, _, _ = img.split()
-
+                
+        transform = transforms.Compose([transforms.ToTensor()])
+        
         # hr_img HR image
-        hr_transform = Compose([Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        hr_img = hr_transform(img)
-
-        # lr_img LR image
-        lr_transform = Compose([Resize((lr_img_w, lr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        lr_img = lr_transform(img)
+        hr_img = transform(img)
 
         # Bicubic interpolated image
-        bc_transform = Compose([ToPILImage(), Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        bc_img = bc_transform(lr_img)
+        bc_img = interpolate(img, lr_img_h, lr_img_w)
+        bc_img = transform(bc_img)
 
-        return lr_img, hr_img, bc_img
+        return bc_img, hr_img
 
     def __len__(self):
         return len(self.image_filenames)
@@ -139,11 +147,12 @@ class TestDataset(data.Dataset):
         if not os.path.exists(self.dataset_path):
             link = self.settings.dataset_info['SR_testing_datasets']['link']
             print("Downloading '{dataset_id}' dataset from cloud... id:[{link}]".format(dataset_id='SR_testing_datasets', link=link))
-            comp_file_name = self.download_dataset(dataset_path=self.settings.dataset_root, link=link)
+            os.mkdir(self.dataset_path)
+            comp_file_name = self.download_dataset(dataset_path=self.dataset_path, link=link)
 
-            print("Unzipping...".format(dataset_id='291'))
+            print("Unzipping...".format(dataset_id='SR_testing_datasets'))
             with zipfile.ZipFile(comp_file_name, 'r') as zip_ref:
-                zip_ref.extractall(self.settings.dataset_root)
+                zip_ref.extractall(os.path.join(self.settings.dataset_root, 'SR_testing_datasets'))
 
             if os.path.exists(self.dataset_path):
                 print("Successfully downloaded '{dataset_id}' dataset @ [{dataset_path}]".format(dataset_id='SR_testing_datasets', dataset_path=self.dataset_path))
@@ -172,25 +181,17 @@ class TestDataset(data.Dataset):
         # determine lr_img LR image size
         lr_img_w = hr_img_w // self.scale_factor
         lr_img_h = hr_img_h // self.scale_factor
-
-        # only Y-channel is super-resolved
-        if self.is_gray:
-            img = img.convert('YCbCr')
-            # img, _, _ = lr_img.split()
-
+        
+        transform = transforms.Compose([transforms.ToTensor()])
+        
         # hr_img HR image
-        hr_transform = Compose([Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        hr_img = hr_transform(img)
-
-        # lr_img LR image
-        lr_transform = Compose([Resize((lr_img_w, lr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        lr_img = lr_transform(img)
+        hr_img = transform(img)
 
         # Bicubic interpolated image
-        bc_transform = Compose([ToPILImage(), Resize((hr_img_w, hr_img_h), interpolation=Image.BICUBIC), ToTensor()])
-        bc_img = bc_transform(lr_img)
+        bc_img = interpolate(img, lr_img_h, lr_img_w)
+        bc_img = transform(bc_img)
 
-        return lr_img, hr_img, bc_img
+        return bc_img, hr_img
 
     def __len__(self):
         return len(self.image_filenames)
