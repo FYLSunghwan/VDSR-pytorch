@@ -10,12 +10,12 @@ class Settings:
             'link': '1Rt3asDLuMgLuJvPA1YrhyjWhb97Ly742',
             'is_gray': False,
             'random_scale': False,
-            'crop_size': 36,
+            'crop_size': 48,
             'rotate': True,
             'fliplr': True,
             'fliptb': True,
             'scale_factor': 2,
-            'random_scale_factor': False
+            'random_scale_factor': True
         },
         'SR_testing_datasets': {
             'id': 'Set5',
@@ -33,5 +33,5 @@ class Settings:
     batch_size = 64
     test_batch_size = 1
     clip = 0.4
-    lr = 1e-4
+    lr = 1e-5
   

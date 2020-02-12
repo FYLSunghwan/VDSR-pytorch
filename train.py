@@ -1,4 +1,6 @@
 from settings import Settings
+import matplotlib.pyplot as plt
+
 import os
 import torch
 import torch.nn as nn
@@ -8,31 +10,15 @@ from utils.datasets import TrainDataset, TestDataset
 from torchvision.transforms import *
 from torch.autograd import Variable
 from model import Net
+from model import SRCNN
 from tensorboardX import SummaryWriter
 from PIL import Image
-import math
+from utils.psnr import PSNR
 import numpy as np
-
-settings = Settings()
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(device)
-print(settings.dataset_info['291'])
-print(settings.lr)
+import math
 
 
-# Here is the function for PSNR calculation
-def PSNR(pred, gt, shave_border=0):
-    height, width = pred.shape[:2]
-    pred = pred[shave_border:height - shave_border, shave_border:width - shave_border]
-    gt = gt[shave_border:height - shave_border, shave_border:width - shave_border]
-    imdff = pred - gt
-    rmse = math.sqrt(np.mean(imdff ** 2))
-    if rmse == 0:
-        return 100
-    return 20 * math.log10(1 / rmse)
-
-
-def load_dataset(dataset='train'):
+def load_dataset(dataset, settings):
     if settings.num_channels == 1:
         is_gray = True
     else:
@@ -42,18 +28,13 @@ def load_dataset(dataset='train'):
         print('Loading train datasets...')
         train_set = TrainDataset(settings=settings)
         return DataLoader(dataset=train_set, num_workers=settings.num_threads, batch_size=settings.batch_size,
-                          shuffle=True)
+                          shuffle=True, drop_last=True)
     elif dataset == 'test':
         print('Loading test datasets...')
         test_set = TestDataset(settings=settings)
         return DataLoader(dataset=test_set, num_workers=settings.num_threads, batch_size=settings.test_batch_size,
                           shuffle=False)
-    elif dataset == 'gdata':
-        print('github')
-        train_set = DatasetFromHdf5('datasets/data/train.h5')
-        return DataLoader(dataset=train_set, num_workers=settings.num_threads, batch_size=settings.test_batch_size,
-                          shuffle=True)
-      
+        
         
 def save_checkpoint(model, epoch):
     model_out_path = "checkpoint/" + "model_epoch_{}.pth".format(epoch)
@@ -66,15 +47,15 @@ def save_checkpoint(model, epoch):
     print("Checkpoint saved to {}".format(model_out_path))
     
     
-def train(training_data_loader, testing_data_loader, optimizer, model, criterion, epoch, writer, log_iter, test_log_iter):
-    #lr = adjust_learning_rate(optimizer, epoch)
-    #lr = 1e-4
+def train(training_data_loader, testing_data_loader, device, settings, optimizer, model, criterion, epoch, writer, log_iter, test_log_iter):
     for param_group in optimizer.param_groups:
         lr = param_group["lr"]
         
     print("Epoch = {}, lr = {}".format(epoch, optimizer.param_groups[0]["lr"]))
     avg_loss = 0.0
-    for _ in range(100):
+    for i in range(2490):
+        if i%100==0:
+            print(">> {}/2490".format(i))
         for iteration, batch in enumerate(training_data_loader):
             input, target = Variable(batch[0]), Variable(batch[1], requires_grad=False)
             input = input.to(device)
@@ -93,41 +74,87 @@ def train(training_data_loader, testing_data_loader, optimizer, model, criterion
             log_iter += 1
         
         with torch.no_grad():
-            avg_psnr = 0.0
+            psnrs = []
+            bic_psnrs = []
             cnt = 0
             for iteration, batch in enumerate(testing_data_loader):
                 bicubic, hires = Variable(batch[0], requires_grad=False), batch[1]
                 bicubic = bicubic.to(device)
                 out = model(bicubic).cpu().detach().numpy().squeeze(0)
-                hires = hires.numpy().squeeze(0)
-                avg_psnr += PSNR(hires, out)
-                cnt += 1
-            avg_psnr /= cnt
-            writer.add_scalar('loss/PSNR_test', 10*math.log10(1/loss.item()),test_log_iter)
+                
+                bicubic = bicubic.cpu().detach().numpy().squeeze(0)
+                hires = hires.squeeze(0)
+                
+                bicubic *= 255
+                hires *= 255
+                out *= 255
+                
+                bicubic = np.float32(bicubic).transpose(2,1,0)
+                hires = np.float32(hires).transpose(2,1,0)
+                out = np.float32(out).transpose(2,1,0)
+
+                ps = PSNR(hires, out, ycbcr=True)
+                bps = PSNR(hires, bicubic, ycbcr=True)
+
+                psnrs.append(ps)
+                bic_psnrs.append(bps)
+                
+            avg_psnr = np.mean(psnrs)
+            avg_bic_psnr = np.mean(bic_psnrs)
+            writer.add_scalar('loss/PSNR_test', avg_psnr,test_log_iter)
+            writer.add_scalar('loss/PSNR_test_improve', avg_psnr-avg_bic_psnr, test_log_iter)
             test_log_iter += 1
         
-        
     return log_iter, test_log_iter
+        
+def main():
+    settings = Settings()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(device)
+    print(settings.dataset_info['291'])
+    print(settings.lr)
 
+    train_data = load_dataset('train', settings)
+    test_data = load_dataset('test', settings)
+    
+    #model = Net().to(device)
+    model = torch.load('checkpoint/model_epoch_2.pth')['model'].to(device)
+    writer = SummaryWriter()
+    
+    #optimizer = optim.SGD(model.parameters(), lr=settings.lr, momentum=0.9, weight_decay=0.0001)
+    optimizer = optim.Adam(model.parameters(), lr=settings.lr)
+    #scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+    criterion = nn.MSELoss()
 
-train_data = load_dataset('train')
-test_data = load_dataset('test')
-print(train_data)
-print(test_data)
+    total_epoch = 80
+    total_iter = 0
+    test_iter = 0
+    
+    for epoch in range(total_epoch):
+        total_iter, test_iter = train(train_data, test_data, device, settings, optimizer, model, criterion, epoch, writer=writer, log_iter=total_iter, test_log_iter=test_iter)
+        #scheduler.step()
+        save_checkpoint(model, epoch)
+        
+    dbs = []
+    for _, batch in enumerate(test_data):
+        bicubic, hires = Variable(batch[0], requires_grad=False), batch[1]
+        bicubic = bicubic.to(device)
+        out = model(bicubic).cpu().detach().numpy().squeeze(0)
 
+        bicubic = bicubic.cpu().detach().numpy().squeeze(0)
+        hires = hires.squeeze(0)
 
-model = Net().to(device)
-writer = SummaryWriter()
+        hires *= 255
+        out *= 255
 
-optimizer = optim.SGD(model.parameters(), lr=settings.lr, momentum=0.9, weight_decay=0.0001)
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
-criterion = nn.MSELoss()
+        bicubic = np.uint8(bicubic).transpose(2,1,0)
+        hires = np.float32(hires).transpose(2,1,0)
+        out = np.float32(out).transpose(2,1,0)
 
-total_epoch = 80
-total_iter = 0
-test_iter = 0
+        ps = PSNR(hires, out, ycbcr=True)
+        dbs.append(ps)
 
-for epoch in range(total_epoch):
-    total_iter, test_iter = train(train_data, test_data, optimizer, model, criterion, epoch, writer=writer, log_iter=total_iter, test_log_iter=test_iter)
-    scheduler.step()
-    save_checkpoint(model, epoch)
+    print('total PSNR:', np.mean(dbs))
+    
+if __name__ == '__main__':
+    main()
