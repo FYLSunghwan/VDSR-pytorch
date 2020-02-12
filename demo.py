@@ -2,6 +2,7 @@ import torch
 from torchvision.transforms import *
 from model import Net
 from torchvision.utils import save_image
+from PIL import Image
     
 def load_img(filepath):
     img = Image.open(filepath)
