@@ -1,6 +1,6 @@
 # VDSR-pytorch
 VDSR: Accurate Image Super-Resolution Using Very Deep Convolutional Networks  
-Paper: http://cv.snu.ac.kr/research/VDSR/
+Paper: [Link](https://cv.snu.ac.kr/research/VDSR/VDSR_CVPR2016.pdf)
 
 ## Usage
 ### Training
@@ -23,3 +23,7 @@ usage: python3 train.py
 | 2x      | 37.53      | 37.20 |
 | 3x      | 33.66      | 33.33|
 | 4x      | 31.35      | 31.20 |
+
+<p>
+  <img src='result.png'/>
+</p>
