@@ -7,6 +7,12 @@ Paper: [Link](https://cv.snu.ac.kr/research/VDSR/VDSR_CVPR2016.pdf)
 ```
 usage: python3 train.py
 ```
+### Demo
+```
+usage: python3 demo.py
+```
+- Image filename must be `test.jpg` at the root folder of this repo.
+- Output file will be save as `out.jpg` at the root folder of this repo.
 
 ### Prepare Training and Testing dataset
   - The dataset will be automatically downloaded during loading the dataloader.
